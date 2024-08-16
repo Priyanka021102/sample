@@ -1,0 +1,65 @@
+pip install Flask twilio requests
+
+from flask import Flask, request, jsonify
+from twilio.rest import Client
+import requests
+
+app = Flask(__name__)
+
+# Replace with your actual Twilio details and government authority contact
+TWILIO_PHONE_NUMBER = 'YOUR_TWILIO_PHONE_NUMBER'
+AUTHORITY_CONTACT_NUMBER = 'GOVERNMENT_AUTHORITY_PHONE_NUMBER'
+PERSONAL_CONTACT_NUMBER = 'PERSONAL_CONTACT_PHONE_NUMBER'
+TWILIO_ACCOUNT_SID = 'YOUR_TWILIO_ACCOUNT_SID'
+TWILIO_AUTH_TOKEN = 'YOUR_TWILIO_AUTH_TOKEN'
+GOOGLE_MAPS_API_KEY = 'YOUR_GOOGLE_MAPS_API_KEY'
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    data = request.json
+    user_message = data['message']
+    user_phone = data['phone']
+    location_lat = data['latitude']
+    location_long = data['longitude']
+
+    if "help" in user_message.lower():
+        location_address = get_location_address(location_lat, location_long)
+        alert_message = f"ALERT: A user is in danger!\nLocation: {location_address}\nContact: {user_phone}"
+
+        # Send alert to government authority
+        send_sms(alert_message, AUTHORITY_CONTACT_NUMBER)
+
+        # Send alert to personal contact
+        send_sms(alert_message, PERSONAL_CONTACT_NUMBER)
+
+        response = {"status": "Alert sent to authorities and personal contact."}
+    else:
+        response = {"status": "No action taken. Send 'help' to alert authorities."}
+
+    return jsonify(response)
+
+def send_sms(message, to):
+    client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+    client.messages.create(body=message, from_=TWILIO_PHONE_NUMBER, to=to)
+
+def get_location_address(latitude, longitude):
+    location_url = f"https://maps.googleapis.com/maps/api/geocode/json?latlng={latitude},{longitude}&key={GOOGLE_MAPS_API_KEY}"
+    location_info = requests.get(location_url).json()
+    if location_info['status'] == 'OK':
+        return location_info['results'][0]['formatted_address']
+    else:
+        return "Location not found"
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+{
+    "message": "I need help",
+    "phone": "+1234567890",
+    "latitude": "37.7749",
+    "longitude": "-122.4194"
+}
+
+{
+    "status": "Alert sent to authorities and personal contact."
+}
